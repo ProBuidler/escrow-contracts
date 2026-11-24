@@ -37,6 +37,15 @@ enum Op {
     },
 }
 
+#[test]
+fn terminal_status_classification() {
+    assert!(!Status::Open.is_terminal());
+    assert!(!Status::Disputed.is_terminal());
+    assert!(Status::Released.is_terminal());
+    assert!(Status::Refunded.is_terminal());
+    assert!(Status::Resolved.is_terminal());
+}
+
 fn op() -> impl Strategy<Value = Op> {
     prop_oneof![
         (1u64..6, 1i128..400, any::<bool>(), any::<bool>()).prop_map(
@@ -110,7 +119,7 @@ proptest! {
             // issue lock is held exactly while a bounty is Open/Disputed
             for id in &ids {
                 let b = c.client.get_bounty(id);
-                let live = matches!(b.status, Status::Open | Status::Disputed);
+                let live = !b.status.is_terminal();
                 if live {
                     prop_assert_eq!(c.client.active_bounty(&b.repo_id, &b.issue), Some(*id));
                 }

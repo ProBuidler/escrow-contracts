@@ -551,7 +551,7 @@ pub(crate) fn bump(env: Env, bounty_ids: Vec<u64>) -> Result<(), Error> {
     for id in bounty_ids.iter() {
         let key = DataKey::Bounty(id);
         if let Some(b) = env.storage().persistent().get::<DataKey, Bounty>(&key) {
-            if b.status == Status::Open || b.status == Status::Disputed {
+            if !b.status.is_terminal() {
                 storage::bump_persistent_max(&env, &key);
                 let active_key = DataKey::ActiveByIssue(b.repo_id, b.issue);
                 if env.storage().persistent().has(&active_key) {
