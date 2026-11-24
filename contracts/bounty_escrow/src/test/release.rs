@@ -164,6 +164,19 @@ fn zero_fee_pays_treasury_nothing() {
 }
 
 #[test]
+fn tiny_amount_rounds_fee_to_zero() {
+    let c = CtxBuilder::new().fee_bps(300).limits(1, 500 * UNIT).build();
+    let id = c.fund_with(99, 33, true);
+
+    let settlement = c.client.release(&c.maintainer, &id, &c.winner);
+    assert_eq!(settlement.fee, 0);
+    assert_eq!(settlement.net, 33);
+    assert_eq!(c.bal(&c.token, &c.winner), 33);
+    assert_eq!(c.bal(&c.token, &c.treasury), 0);
+    c.assert_invariant(&c.token);
+}
+
+#[test]
 fn contract_address_as_winner_rejected() {
     let c = Ctx::new();
     let id = c.fund(1);

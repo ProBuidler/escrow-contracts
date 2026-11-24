@@ -127,6 +127,27 @@ stellar contract invoke --id "$ID" --source "$MAINTAINER" --network testnet -- f
 To regenerate the TypeScript contract client from the rebuilt Wasm, run `OUTPUT_DIR=/path/to/escrow-app/packages/contract-client ./scripts/bindings.sh`. This script rebuilds the Wasm and overwrites the target client with Stellar-generated bindings; the generated client lives in the downstream escrow-app repository and must be regenerated and deployed together with this breaking contract release. Neither old positional TypeScript calls nor old CLI flags are compatible with the new Wasm ABI.
 
 ## Entry points
+
+### Signature authorisation
+
+Each signature covers the complete invocation: the entry point and every
+argument shown below. A signature cannot be reused to change the bounty id,
+recipient, token, amount, or administrative target.
+
+| Entry point | Required signer(s) | Arguments authorised |
+|---|---|---|
+| `fund_bounty` | maintainer | maintainer, repo id, issue, token, amount, deadline, relayer flag |
+| `release` / `release_split` | caller | caller, bounty id, winner or winner shares |
+| `refund`, `extend_deadline`, `top_up` | maintainer | maintainer, bounty id, and the requested refund, deadline, or amount change |
+| `open_dispute` | caller | caller and bounty id; caller must be the maintainer or arbiter |
+| `resolve` / `resolve_with_evidence` | arbiter | arbiter, bounty id, winner, split, and evidence hash where supplied |
+| `claim` | winner | winner and bounty id |
+| `set_admin` | current admin and incoming admin | both addresses; the incoming admin must explicitly accept the change |
+| all other `set_*`, pause, unpause, and upgrade calls | admin | admin plus the complete configuration or upgrade arguments |
+
+Read-only methods require no signature. `set_admin` is deliberately the only
+two-signer administrative call: both the current and incoming administrator
+must authorise the exact handoff.
 | Function | Auth | Notes / errors |
 |---|---|---|
 | `init(params: InitParams)` | admin | once (`AlreadyInitialized`); `fee_bps <= 1000` (`InvalidFee`); `min <= max` (`InvalidDeadline`) |
