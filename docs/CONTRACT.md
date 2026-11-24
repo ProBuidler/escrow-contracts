@@ -17,7 +17,7 @@ sequenceDiagram
     actor M as Maintainer
     participant E as Escrow contract
     participant T as Token SAC
-    M->>E: fund_bounty(M, repo, issue, token, amount, deadline, relayer_allowed)
+    M->>E: fund_bounty(params: FundBountyParams)
     Note over E: M signs, not paused, token allowlisted<br/>min ≤ amount ≤ max, deadline in window<br/>no active bounty on this issue
     Note over E: snapshot fee_bps and grace_secs, state = Open<br/>funded += amount, held += amount
     E->>T: transfer(from = Maintainer, to = Escrow, amount)
@@ -108,11 +108,29 @@ sequenceDiagram
 
 `release_split` follows the release flow but transfers one share to each of up to five winners in a single transaction, with all rounding dust assigned to the first winner (see "Fee math").
 
+### ABI change: grouped input structs (#114)
+
+`init` and `fund_bounty` now take a **single** `#[contracttype]` argument, instead of the previous positional arguments. This is an ABI-breaking change for newly built Wasm: callers must update their contract bindings and invocation arguments before deploying or upgrading. The serialized persistent `Config` and `Bounty` layouts, function names, authorization rules, return types, and emitted events are unchanged.
+
+| Entry point | Argument | Struct fields |
+|---|---|---|
+| `init` | `params: InitParams` | `admin: Address`, `relayer: Address`, `arbiter: Address`, `treasury: Address`, `fee_bps: u32`, `grace_secs: u64`, `min_duration_secs: u64`, `max_duration_secs: u64` |
+| `fund_bounty` | `params: FundBountyParams` | `maintainer: Address`, `repo_id: u64`, `issue: u64`, `token: Address`, `amount: i128`, `deadline: u64`, `relayer_allowed: bool` |
+
+Rust clients must now pass references to `InitParams` and `FundBountyParams`. Stellar CLI callers pass the JSON object using `--params '<json object>'` after `init` or `fund_bounty`. In CLI JSON, `amount` is an i128 encoded as a **string**; the smaller integers and boolean are encoded as JSON numbers and boolean. For example:
+
+```bash
+stellar contract invoke --id "$ID" --source "$MAINTAINER" --network testnet -- fund_bounty \
+  --params "{\"maintainer\":\"$MAINTAINER_ADDR\",\"repo_id\":1,\"issue\":42,\"token\":\"$TOKEN_ID\",\"amount\":\"10000000\",\"deadline\":1800000000,\"relayer_allowed\":true}"
+```
+
+To regenerate the TypeScript contract client from the rebuilt Wasm, run `OUTPUT_DIR=/path/to/escrow-app/packages/contract-client ./scripts/bindings.sh`. This script rebuilds the Wasm and overwrites the target client with Stellar-generated bindings; the generated client lives in the downstream escrow-app repository and must be regenerated and deployed together with this breaking contract release. Neither old positional TypeScript calls nor old CLI flags are compatible with the new Wasm ABI.
+
 ## Entry points
 | Function | Auth | Notes / errors |
 |---|---|---|
-| `init(admin, relayer, arbiter, treasury, fee_bps, grace_secs, min_dur, max_dur)` | admin | once (`AlreadyInitialized`); `fee_bps <= 1000` (`InvalidFee`); `min <= max` (`InvalidDeadline`) |
-| `fund_bounty(maintainer, repo_id, issue, token, amount, deadline, relayer_allowed) -> id` | maintainer | `Paused`, `TokenNotAllowed`, `AmountTooSmall/Large`, `InvalidDeadline`, `IssueAlreadyFunded`, `InvalidKey` (repo_id or issue must not be 0). Snapshots per-token fee override if set, else global `fee_bps`. Snapshots `grace_secs` from the policy at funding time (see #163). |
+| `init(params: InitParams)` | admin | once (`AlreadyInitialized`); `fee_bps <= 1000` (`InvalidFee`); `min <= max` (`InvalidDeadline`) |
+| `fund_bounty(params: FundBountyParams) -> id` | maintainer | `Paused`, `TokenNotAllowed`, `AmountTooSmall/Large`, `InvalidDeadline`, `IssueAlreadyFunded`, `InvalidKey` (repo_id or issue must not be 0). Snapshots per-token fee override if set, else global `fee_bps`. Snapshots `grace_secs` from the policy at funding time (see #163). |
 | `release(caller, id, winner)` | maintainer, or relayer if `relayer_allowed` | `InvalidStatus`, `Unauthorized`, `RelayerNotAllowed`, `SelfPayout` (winner is the maintainer or the contract itself). Allowed after deadline until refunded. Pays `amount - fee` to winner, `fee` to treasury. If the winner's transfer fails (for example, no trustline), the release still succeeds and the net becomes a claim (`deferred = true`). |
 | `release_split(caller, id, winners)` | same as `release` | 1–5 unique winners whose shares total 10,000 bps. The fee is charged once; integer dust goes to the first winner. |
 | `refund(maintainer, id)` | maintainer | only at/after `deadline + grace` (`DeadlineNotReached`); uses the `grace_secs` snapshotted into the bounty at funding time, so a later `set_grace` call cannot extend the refund window on existing bounties; full amount, no fee; works while paused |
@@ -132,6 +150,12 @@ sequenceDiagram
 | `set_relayer_limit(admin, token, window_secs, cap)` | admin | configure per-token rolling rate limits on relayer releases |
 | `set_upgrade_delay(admin, delay)` | admin | configure timelock delay for contract bytecode upgrades |
 | `propose_upgrade`, `execute_upgrade`, `cancel_upgrade` | admin | proposal waits at least `max_duration + grace`; delay can only increase. Emits `upgrade_proposed`, `upgraded`, or `upgrade_cancelled`. |
+| `bounty_count()` | none | total number of bounties created, including terminal bounties |
+| `get_bounties(start, limit)` | none | returns a page of up to 256 bounty records; open and disputed entries have their TTL refreshed |
+| `quote_release(bounty_id)`, `quote_resolve(bounty_id, winner_bps)`, `quote_fee(amount, fee_bps)` | none | preview fee and payout amounts using checked arithmetic; no transfers |
+| `withdraw_fees(caller, token)` | admin or treasury | transfers accrued fees to the treasury and returns the amount withdrawn; emits `fees_withdrawn` |
+| `bump(bounty_ids)` | anyone | permissionless TTL extension for nonterminal bounties and related entries; at most 50 IDs |
+| `upgrade(admin, wasm_hash)` | admin | immediate, untimelocked Wasm upgrade; prefer the timelocked proposal flow for operational safety |
 
 ## Errors
 AlreadyInitialized=1 NotInitialized=2 Unauthorized=3 Paused=4 TokenNotAllowed=5 AmountTooSmall=6 AmountTooLarge=7 InvalidDeadline=8 IssueAlreadyFunded=9 BountyNotFound=10 InvalidStatus=11 DeadlineNotReached=12 SelfPayout=13 InvalidSplit=14 InvalidFee=15 Overflow=16 RelayerNotAllowed=17 TopUpLimitReached=18 DisputeNotExpired=19 DisputeAlreadyUsed=20 NothingToClaim=21 AlreadyClaimed=22 ConflictOfInterest=23 RelayerLimitExceeded=24 InvalidWinners=25 UpgradeNotReady=26 NoPendingUpgrade=27 UpgradeDelayCannotDecrease=28 InvalidKey=29 ContractAddressRejected=30 InvalidLimits=31
@@ -173,7 +197,7 @@ AlreadyInitialized=1 NotInitialized=2 Unauthorized=3 Paused=4 TokenNotAllowed=5 
 | 31 | `InvalidLimits` | Configured token limits are invalid (`min <= 0` or `max < min`). | `set_token` | Validate token configuration form; ensure minimum deposit is positive and maximum deposit is greater than or equal to minimum. |
 
 ## Events
-Topics `("bounty", <name>, id)`: `funded`, `released` (`deferred`), `released_split`, `refunded`, `disputed`, `resolved` (`winner_deferred`), `evidence` (`evidence_hash`), `deadline_extended`, `topped_up`, `dispute_expired`, `claimed`, `config`, `token_set`, `token_removed`, `paused`, `unpaused`, `upgrade_proposed`, `upgrade_cancelled`, `upgraded`, `initialized`. Data carries every field the indexer needs. See [docs/EVENTS.md](EVENTS.md) for full topic layouts, field types, and example JSON payloads for each event.
+Topics `("bounty", <name>, id)`: `funded`, `released` (`deferred`), `released_split`, `refunded`, `disputed`, `resolved` (`winner_deferred`), `evidence` (`evidence_hash`), `deadline_extended`, `topped_up`, `dispute_expired`, `claimed`, `config`, `token_set`, `token_removed`, `paused`, `unpaused`, `upgrade_proposed`, `upgrade_cancelled`, `upgraded`, `initialized`, `fees_withdrawn`. Data carries every field the indexer needs. See [docs/EVENTS.md](EVENTS.md) for full topic layouts, field types, and example JSON payloads for each event.
 
 ## Fee math
 `fee = floor(amount*bps/10000)` (dust goes to the receiver); `portion = floor(amount*winner_bps/10000)` (dust stays with the maintainer). Checked arithmetic, `Overflow` on failure.

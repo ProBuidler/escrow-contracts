@@ -43,7 +43,7 @@ decides *whether a payment is allowed at all*, and that is the part you should a
 | | |
 |---|---|
 | **Deployed on testnet** | [`CCEKBPYC…ZF3J4RKN`](https://stellar.expert/explorer/testnet/contract/CCEKBPYCWKNTXIQLXJHVAF7RYGUZZ6MITA7VVJBOK5BHXUO44ELZ4F4V) |
-| **Size** | 32,783 bytes of Wasm (40 KiB CI gate), 36 entry points |
+| **Size** | 32,783 bytes of Wasm (40 KiB CI gate), 44 entry points |
 | **Tests** | 63, including a property test of the funds invariant |
 | **Built with** | Rust 1.99.1 · `soroban-sdk` 29.0.1 · target `wasm32v1-none` |
 | **Audited** | ❌ **No.** See [Before mainnet](#before-mainnet). |
@@ -63,6 +63,8 @@ make check   # build, reproducible build, docs, fmt, clippy, tests and shellchec
 `make check` runs the same order as CI. `make ci` additionally runs `cargo deny check`
 and `cargo audit`, so install those two tools first. The individual targets are listed in
 `make help`; `cargo llvm-cov --package bounty_escrow` remains the optional coverage command.
+
+> **Contract ABI change (#114):** `init` now accepts `InitParams` and `fund_bounty` accepts `FundBountyParams` as single `#[contracttype]` arguments. The old positional calls will not work against newly built Wasm. Rebuild and regenerate the TypeScript bindings using `OUTPUT_DIR=../skillescrow-app/packages/contract-client ./scripts/bindings.sh` before deploying clients. See [ABI migration](docs/CONTRACT.md#abi-change-grouped-input-structs-114).
 
 ### Windows
 
@@ -88,7 +90,7 @@ Two gotchas on Windows:
 ```bash
 ./scripts/deploy-testnet.sh    # deploy + init + allowlist native XLM, writes deployments/testnet.json
 ./scripts/smoke-testnet.sh     # fund → release and fund → dispute → resolve, against the real network
-./scripts/bindings.sh          # regenerate the TypeScript client into ../skillescrow-app
+./scripts/bindings.sh          # regenerate TypeScript client for the grouped-params ABI into ../skillescrow-app
 ```
 
 `deploy-testnet.sh` refuses to run if its deployment record already exists, because a new deploy would
@@ -135,7 +137,7 @@ Example: `FEE_BPS=500 GRACE_SECS=86400 ./scripts/deploy-testnet.sh`
 
 | Function | Who may call it | What the contract checks |
 |---|---|---|
-| `fund_bounty(maintainer, repo_id, issue, token, amount, deadline, relayer_allowed) -> id` | maintainer | Not paused · token allowlisted · `min ≤ amount ≤ max` · deadline within the allowed window · **no active bounty already on this issue**. Snapshots the current fee. |
+| fund_bounty(params: FundBountyParams) -> id | maintainer | Not paused · token allowlisted · `min ≤ amount ≤ max` · deadline within the allowed window · **no active bounty already on this issue**. Snapshots the current fee. |
 | `release(caller, bounty_id, winner)` | maintainer, **or** the relayer if `relayer_allowed` | Status is `Open` · the winner is neither the maintainer nor the contract itself. Allowed *after* the deadline too, as long as no refund has happened. |
 | `release_split(caller, bounty_id, winners)` | same as `release` | 1–5 unique winners; shares total 10,000 bps. One fee is charged and rounding dust goes to the first winner. |
 | `refund(maintainer, bounty_id)` | maintainer only | Status is `Open` · `now ≥ deadline + grace`. Returns the full amount, **no fee**. Works while paused. |

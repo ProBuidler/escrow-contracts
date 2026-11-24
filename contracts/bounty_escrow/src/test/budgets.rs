@@ -69,16 +69,16 @@ fn measure_init() -> Measurement {
         env,
         client,
     };
-    c.client.init(
-        &c.admin,
-        &c.relayer,
-        &c.arbiter,
-        &c.treasury,
-        &FEE_BPS,
-        &GRACE,
-        &DAY,
-        &(90 * DAY),
-    );
+    c.client.init(&crate::InitParams {
+        admin: c.admin.clone(),
+        relayer: c.relayer.clone(),
+        arbiter: c.arbiter.clone(),
+        treasury: c.treasury.clone(),
+        fee_bps: FEE_BPS,
+        grace_secs: GRACE,
+        min_duration_secs: DAY,
+        max_duration_secs: 90 * DAY,
+    });
     record("init", &c)
 }
 

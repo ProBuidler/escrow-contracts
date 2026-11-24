@@ -44,16 +44,16 @@ impl<'a> Ctx<'a> {
         let token2 = env
             .register_stellar_asset_contract_v2(Address::generate(&env))
             .address();
-        client.init(
-            &admin,
-            &relayer,
-            &arbiter,
-            &treasury,
-            &FEE_BPS,
-            &GRACE,
-            &DAY,
-            &(90 * DAY),
-        );
+        client.init(&crate::InitParams {
+            admin: admin.clone(),
+            relayer: relayer.clone(),
+            arbiter: arbiter.clone(),
+            treasury: treasury.clone(),
+            fee_bps: FEE_BPS,
+            grace_secs: GRACE,
+            min_duration_secs: DAY,
+            max_duration_secs: 90 * DAY,
+        });
         for t in [&token, &token2] {
             client.set_token(&admin, t, &UNIT, &(500 * UNIT), &None);
             StellarAssetClient::new(&env, t).mint(&maintainer, &(10_000 * UNIT));
@@ -94,15 +94,15 @@ impl<'a> Ctx<'a> {
     }
 
     pub fn fund_with(&self, issue: u64, amount: i128, relayer: bool) -> u64 {
-        self.client.fund_bounty(
-            &self.maintainer,
-            &REPO,
-            &issue,
-            &self.token,
-            &amount,
-            &(self.now() + 7 * DAY),
-            &relayer,
-        )
+        self.client.fund_bounty(&crate::FundBountyParams {
+            maintainer: self.maintainer.clone(),
+            repo_id: REPO,
+            issue,
+            token: self.token.clone(),
+            amount,
+            deadline: self.now() + 7 * DAY,
+            relayer_allowed: relayer,
+        })
     }
 
     /// A second maintainer, independent of `Ctx::maintainer` and funded on
@@ -117,15 +117,15 @@ impl<'a> Ctx<'a> {
     /// Funds a bounty on `token` as the given maintainer (rather than the
     /// default `Ctx::maintainer`). 100 units, 7 days, relayer allowed.
     pub fn fund_as(&self, maintainer: &Address, issue: u64) -> u64 {
-        self.client.fund_bounty(
-            maintainer,
-            &REPO,
-            &issue,
-            &self.token,
-            &(100 * UNIT),
-            &(self.now() + 7 * DAY),
-            &true,
-        )
+        self.client.fund_bounty(&crate::FundBountyParams {
+            maintainer: (*maintainer).clone(),
+            repo_id: REPO,
+            issue,
+            token: self.token.clone(),
+            amount: 100 * UNIT,
+            deadline: self.now() + 7 * DAY,
+            relayer_allowed: true,
+        })
     }
 
     pub fn assert_invariant(&self, token: &Address) {

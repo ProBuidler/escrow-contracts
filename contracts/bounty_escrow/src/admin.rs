@@ -4,17 +4,17 @@
 
 use super::*;
 
-pub(crate) fn init(
-    env: Env,
-    admin: Address,
-    relayer: Address,
-    arbiter: Address,
-    treasury: Address,
-    fee_bps: u32,
-    grace_secs: u64,
-    min_duration_secs: u64,
-    max_duration_secs: u64,
-) -> Result<(), Error> {
+pub(crate) fn init(env: Env, params: InitParams) -> Result<(), Error> {
+    let InitParams {
+        admin,
+        relayer,
+        arbiter,
+        treasury,
+        fee_bps,
+        grace_secs,
+        min_duration_secs,
+        max_duration_secs,
+    } = params;
     admin.require_auth();
     if storage::has_config(&env) {
         return Err(Error::AlreadyInitialized);
@@ -109,28 +109,45 @@ pub(crate) fn set_fee(env: Env, admin: Address, fee_bps: u32) -> Result<(), Erro
     Ok(())
 }
 
-pub(crate) fn set_relayer(env: Env, admin: Address, relayer: Address) -> Result<(), Error> {
-    let mut c = require_admin(&env, &admin)?;
-    c.relayer = relayer;
-    storage::set_config(&env, &c);
-    changed(&env, symbol_short!("relayer"));
+#[derive(Clone, Copy)]
+enum Role {
+    Relayer,
+    Arbiter,
+    Treasury,
+}
+
+/// Single authorization, storage write and event path for role changes.
+fn set_role(env: Env, admin: Address, next: Address, role: Role) -> Result<(), Error> {
+    let mut config = require_admin(&env, &admin)?;
+    let field = match role {
+        Role::Relayer => {
+            config.relayer = next;
+            symbol_short!("relayer")
+        }
+        Role::Arbiter => {
+            config.arbiter = next;
+            symbol_short!("arbiter")
+        }
+        Role::Treasury => {
+            config.treasury = next;
+            symbol_short!("treasury")
+        }
+    };
+    storage::set_config(&env, &config);
+    changed(&env, field);
     Ok(())
+}
+
+pub(crate) fn set_relayer(env: Env, admin: Address, relayer: Address) -> Result<(), Error> {
+    set_role(env, admin, relayer, Role::Relayer)
 }
 
 pub(crate) fn set_arbiter(env: Env, admin: Address, arbiter: Address) -> Result<(), Error> {
-    let mut c = require_admin(&env, &admin)?;
-    c.arbiter = arbiter;
-    storage::set_config(&env, &c);
-    changed(&env, symbol_short!("arbiter"));
-    Ok(())
+    set_role(env, admin, arbiter, Role::Arbiter)
 }
 
 pub(crate) fn set_treasury(env: Env, admin: Address, treasury: Address) -> Result<(), Error> {
-    let mut c = require_admin(&env, &admin)?;
-    c.treasury = treasury;
-    storage::set_config(&env, &c);
-    changed(&env, symbol_short!("treasury"));
-    Ok(())
+    set_role(env, admin, treasury, Role::Treasury)
 }
 
 pub(crate) fn set_grace(env: Env, admin: Address, grace_secs: u64) -> Result<(), Error> {

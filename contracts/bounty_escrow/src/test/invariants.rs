@@ -75,9 +75,15 @@ proptest! {
             match o {
                 Op::Fund { issue, units, tok, relayer } => {
                     let t = if tok { &c.token } else { &c.token2 };
-                    if let Ok(Ok(id)) = c.client.try_fund_bounty(
-                        &c.maintainer, &REPO, &issue, t, &(units * UNIT),
-                        &(c.now() + 7 * DAY), &relayer) {
+                    if let Ok(Ok(id)) = c.client.try_fund_bounty(&crate::FundBountyParams {
+                        maintainer: c.maintainer.clone(),
+                        repo_id: REPO,
+                        issue,
+                        token: (*t).clone(),
+                        amount: units * UNIT,
+                        deadline: c.now() + 7 * DAY,
+                        relayer_allowed: relayer,
+                    }) {
                         ids.push(id);
                     }
                 }

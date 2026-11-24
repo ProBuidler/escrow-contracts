@@ -24,28 +24,28 @@ fn token_fee_override_and_fallback() {
     assert_eq!(t3_limits.fee_bps, Some(50));
 
     // Fund bounty with token3 -> snapshots the override (50 bps)
-    let id1 = c.client.fund_bounty(
-        &c.maintainer,
-        &REPO,
-        &501,
-        &token3,
-        &(100 * UNIT),
-        &(c.now() + 7 * 86_400),
-        &true,
-    );
+    let id1 = c.client.fund_bounty(&crate::FundBountyParams {
+        maintainer: c.maintainer.clone(),
+        repo_id: REPO,
+        issue: 501,
+        token: token3.clone(),
+        amount: 100 * UNIT,
+        deadline: c.now() + 7 * 86_400,
+        relayer_allowed: true,
+    });
     let b1 = c.client.get_bounty(&id1);
     assert_eq!(b1.fee_bps, 50);
 
     // Fund bounty with default token (token has fee_bps = None) -> snapshots config fee (FEE_BPS = 300)
-    let id2 = c.client.fund_bounty(
-        &c.maintainer,
-        &REPO,
-        &502,
-        &c.token,
-        &(100 * UNIT),
-        &(c.now() + 7 * 86_400),
-        &true,
-    );
+    let id2 = c.client.fund_bounty(&crate::FundBountyParams {
+        maintainer: c.maintainer.clone(),
+        repo_id: REPO,
+        issue: 502,
+        token: c.token.clone(),
+        amount: 100 * UNIT,
+        deadline: c.now() + 7 * 86_400,
+        relayer_allowed: true,
+    });
     let b2 = c.client.get_bounty(&id2);
     assert_eq!(b2.fee_bps, FEE_BPS);
 

@@ -41,7 +41,7 @@
 //! | 10_001 | 300 | 3_334 / 3_333 / 3_333 | 300 | 3_235 + 3_233 + 3_233 |
 //! | 1_000_000 | 0 | 2_000 / 3_000 / 5_000 | 0 | 200_000 + 300_000 + 500_000 |
 
-use crate::errors::Error;
+use crate::{errors::Error, math::sub};
 
 pub const BPS_DENOMINATOR: i128 = 10_000;
 pub const MAX_FEE_BPS: u32 = 1_000;
@@ -65,7 +65,7 @@ pub fn fee(amount: i128, bps: u32) -> Result<i128, Error> {
 /// amount - fee; rounding dust goes to the receiver.
 pub fn net(amount: i128, bps: u32) -> Result<i128, Error> {
     let fee = fee(amount, bps)?;
-    amount.checked_sub(fee).ok_or(Error::Overflow)
+    sub(amount, fee)
 }
 
 /// floor(amount * winner_bps / 10_000); dust stays with the maintainer.

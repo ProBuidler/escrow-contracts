@@ -21,15 +21,15 @@ fn max_duration_bounty_survives_to_deadline_plus_grace() {
     // Fund bounty with max duration (90 days)
     let max_duration = 90 * DAY;
     let deadline = c.now() + max_duration;
-    let id = c.client.fund_bounty(
-        &c.maintainer,
-        &REPO,
-        &101,
-        &c.token,
-        &(50 * UNIT),
-        &deadline,
-        &true,
-    );
+    let id = c.client.fund_bounty(&crate::FundBountyParams {
+        maintainer: c.maintainer.clone(),
+        repo_id: REPO,
+        issue: 101,
+        token: c.token.clone(),
+        amount: 50 * UNIT,
+        deadline,
+        relayer_allowed: true,
+    });
 
     // Initial TTL checks
     let bounty_key = DataKey::Bounty(id);

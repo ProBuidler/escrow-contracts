@@ -37,6 +37,8 @@ Identities are named `<KEY_PREFIX>{admin,arbiter,treasury,relayer,maintainer,con
 
 Admin, relayer, arbiter and treasury must be four different accounts before mainnet. `require_admin` checks the `--admin` argument against stored config and then calls `require_auth`, so both the value and the signature must be right.
 
+> **ABI migration (#114):** Newly built Wasm accepts `init --params '{...}'` and `fund_bounty --params '{...}'` JSON struct arguments. The deployment and smoke scripts handle this; older positional arguments are incompatible. See [contract ABI migration](CONTRACT.md#abi-change-grouped-input-structs-114) and regenerate the downstream TypeScript bindings before upgrading a deployment.
+
 ## Scenario 0 — Inspect state before and after any change (read-only)
 
 No signing, nothing submitted. All three are safe during an incident.

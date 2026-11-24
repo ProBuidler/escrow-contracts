@@ -4,16 +4,16 @@
 
 use super::*;
 
-pub(crate) fn fund_bounty(
-    env: Env,
-    maintainer: Address,
-    repo_id: u64,
-    issue: u64,
-    token: Address,
-    amount: i128,
-    deadline: u64,
-    relayer_allowed: bool,
-) -> Result<u64, Error> {
+pub(crate) fn fund_bounty(env: Env, params: FundBountyParams) -> Result<u64, Error> {
+    let FundBountyParams {
+        maintainer,
+        repo_id,
+        issue,
+        token,
+        amount,
+        deadline,
+        relayer_allowed,
+    } = params;
     maintainer.require_auth();
     let cfg = storage::get_config(&env)?;
     if cfg.paused {

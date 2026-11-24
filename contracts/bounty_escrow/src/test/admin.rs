@@ -14,7 +14,16 @@ use soroban_sdk::Event as _;
 fn init_once() {
     let c = Ctx::new();
     let a = Address::generate(&c.env);
-    let r = c.client.try_init(&a, &a, &a, &a, &0, &0, &DAY, &DAY);
+    let r = c.client.try_init(&crate::InitParams {
+        admin: a.clone(),
+        relayer: a.clone(),
+        arbiter: a.clone(),
+        treasury: a.clone(),
+        fee_bps: 0,
+        grace_secs: 0,
+        min_duration_secs: DAY,
+        max_duration_secs: DAY,
+    });
     assert_eq!(r.unwrap_err().unwrap(), Error::AlreadyInitialized);
     let cfg = c.client.get_config();
     assert_eq!(cfg.admin, c.admin);
@@ -28,7 +37,16 @@ fn init_emits_initialized_event() {
     let id = env.register(BountyEscrow, ());
     let client = BountyEscrowClient::new(&env, &id);
     let a = Address::generate(&env);
-    client.init(&a, &a, &a, &a, &300, &DAY, &DAY, &(90 * DAY));
+    client.init(&crate::InitParams {
+        admin: a.clone(),
+        relayer: a.clone(),
+        arbiter: a.clone(),
+        treasury: a.clone(),
+        fee_bps: 300,
+        grace_secs: DAY,
+        min_duration_secs: DAY,
+        max_duration_secs: 90 * DAY,
+    });
     let expected = crate::events::Initialized {
         admin: a.clone(),
         relayer: a.clone(),
@@ -52,13 +70,31 @@ fn init_validates() {
     let cl = BountyEscrowClient::new(&env, &id);
     let a = Address::generate(&env);
     assert_eq!(
-        cl.try_init(&a, &a, &a, &a, &1_001, &0, &1, &2)
+        cl.try_init(&crate::InitParams {
+            admin: a.clone(),
+            relayer: a.clone(),
+            arbiter: a.clone(),
+            treasury: a.clone(),
+            fee_bps: 1_001,
+            grace_secs: 0,
+            min_duration_secs: 1,
+            max_duration_secs: 2,
+        })
             .unwrap_err()
             .unwrap(),
         Error::InvalidFee
     );
     assert_eq!(
-        cl.try_init(&a, &a, &a, &a, &300, &0, &5, &2)
+        cl.try_init(&crate::InitParams {
+            admin: a.clone(),
+            relayer: a.clone(),
+            arbiter: a.clone(),
+            treasury: a.clone(),
+            fee_bps: 300,
+            grace_secs: 0,
+            min_duration_secs: 5,
+            max_duration_secs: 2,
+        })
             .unwrap_err()
             .unwrap(),
         Error::InvalidDeadline
@@ -97,15 +133,15 @@ fn token_limit_change_only_affects_new_bounties() {
         .set_token(&c.admin, &c.token, &UNIT, &(100 * UNIT), &None);
     c.set_time(c.now() + 7 * DAY + GRACE);
     c.client.refund(&c.maintainer, &id);
-    let result = c.client.try_fund_bounty(
-        &c.maintainer,
-        &REPO,
-        &2,
-        &c.token,
-        &(101 * UNIT),
-        &(c.now() + DAY),
-        &true,
-    );
+    let result = c.client.try_fund_bounty(&crate::FundBountyParams {
+        maintainer: c.maintainer.clone(),
+        repo_id: REPO,
+        issue: 2,
+        token: c.token.clone(),
+        amount: 101 * UNIT,
+        deadline: c.now() + DAY,
+        relayer_allowed: true,
+    });
     assert_eq!(result.unwrap_err().unwrap(), Error::AmountTooLarge);
 }
 
@@ -236,15 +272,15 @@ fn removing_token_blocks_funding_only() {
     let id = c.fund(1);
     let id2 = c.fund(2);
     c.client.remove_token(&c.admin, &c.token);
-    let r = c.client.try_fund_bounty(
-        &c.maintainer,
-        &REPO,
-        &3,
-        &c.token,
-        &UNIT,
-        &(c.now() + 2 * DAY),
-        &true,
-    );
+    let r = c.client.try_fund_bounty(&crate::FundBountyParams {
+        maintainer: c.maintainer.clone(),
+        repo_id: REPO,
+        issue: 3,
+        token: c.token.clone(),
+        amount: UNIT,
+        deadline: c.now() + 2 * DAY,
+        relayer_allowed: true,
+    });
     assert_eq!(r.unwrap_err().unwrap(), Error::TokenNotAllowed);
     c.client.release(&c.maintainer, &id, &c.winner);
     c.set_time(c.now() + 30 * DAY);

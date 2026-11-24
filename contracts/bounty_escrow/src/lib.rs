@@ -5,6 +5,7 @@ mod bounty;
 mod errors;
 mod events;
 mod fees;
+mod math;
 mod storage;
 mod types;
 
@@ -19,7 +20,11 @@ use soroban_sdk::{
 };
 
 pub use errors::Error;
-pub use types::{Bounty, Config, DataKey, SplitPayout, Status, TokenLimits, Totals, WinnerShare};
+pub use types::{
+    Bounty, Config, DataKey, FundBountyParams, InitParams, SplitPayout, Status, TokenLimits, Totals,
+    WinnerShare,
+};
+use math::{add, sub};
 use types::{
     ClaimRecord, DisputeRecord, PendingUpgrade, RefundSettlement, RelayerLimit, ReleaseSettlement,
     ResolveSettlement,
@@ -45,14 +50,6 @@ fn require_admin(env: &Env, admin: &Address) -> Result<Config, Error> {
 
 fn changed(env: &Env, field: Symbol) {
     events::ConfigChanged { field }.publish(env);
-}
-
-fn add(a: i128, b: i128) -> Result<i128, Error> {
-    a.checked_add(b).ok_or(Error::Overflow)
-}
-
-fn sub(a: i128, b: i128) -> Result<i128, Error> {
-    a.checked_sub(b).ok_or(Error::Overflow)
 }
 
 /// Records a winner credit that could not be paid now. The contract keeps the funds until `claim`.
@@ -137,32 +134,8 @@ impl BountyEscrow {
     /// - `Error::AlreadyInitialized`: Contract was already initialized.
     /// - `Error::InvalidFee`: `fee_bps` exceeds maximum permitted ceiling (1,000 bps).
     /// - `Error::InvalidDeadline`: `min_duration_secs` is greater than `max_duration_secs`.
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "entry point signature is fixed by the contract ABI"
-    )]
-    pub fn init(
-        env: Env,
-        admin: Address,
-        relayer: Address,
-        arbiter: Address,
-        treasury: Address,
-        fee_bps: u32,
-        grace_secs: u64,
-        min_duration_secs: u64,
-        max_duration_secs: u64,
-    ) -> Result<(), Error> {
-        admin::init(
-            env,
-            admin,
-            relayer,
-            arbiter,
-            treasury,
-            fee_bps,
-            grace_secs,
-            min_duration_secs,
-            max_duration_secs,
-        )
+    pub fn init(env: Env, params: InitParams) -> Result<(), Error> {
+        admin::init(env, params)
     }
 
     /// Escrows tokens for a GitHub issue bounty and transitions status to `Open`.
@@ -187,30 +160,8 @@ impl BountyEscrow {
     /// - `Error::InvalidDeadline`: Deadline is outside allowed min/max duration window.
     /// - `Error::IssueAlreadyFunded`: An active bounty already exists for this repo and issue.
     /// - `Error::Overflow`: Arithmetic overflow calculating timestamp windows or token totals.
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "entry point signature is fixed by the contract ABI"
-    )]
-    pub fn fund_bounty(
-        env: Env,
-        maintainer: Address,
-        repo_id: u64,
-        issue: u64,
-        token: Address,
-        amount: i128,
-        deadline: u64,
-        relayer_allowed: bool,
-    ) -> Result<u64, Error> {
-        bounty::fund_bounty(
-            env,
-            maintainer,
-            repo_id,
-            issue,
-            token,
-            amount,
-            deadline,
-            relayer_allowed,
-        )
+    pub fn fund_bounty(env: Env, params: FundBountyParams) -> Result<u64, Error> {
+        bounty::fund_bounty(env, params)
     }
 
     /// Releases an open bounty to a single recipient (`winner`), deducting the snapshotted platform fee.

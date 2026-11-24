@@ -1,6 +1,6 @@
 use soroban_sdk::{contracttype, Address, BytesN};
 
-use crate::{add, sub, Error};
+use crate::{math::{add, sub}, Error};
 
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -93,6 +93,37 @@ pub struct Config {
     pub paused: bool,
     /// Issue #175: Optional fast-pause key. Can call pause but never unpause or move funds.
     pub guardian: Option<Address>,
+}
+
+/// Initialization arguments grouped into one Soroban ABI value (#114).
+///
+/// This changes the function input shape but not the stored `Config` layout.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InitParams {
+    pub admin: Address,
+    pub relayer: Address,
+    pub arbiter: Address,
+    pub treasury: Address,
+    pub fee_bps: u32,
+    pub grace_secs: u64,
+    pub min_duration_secs: u64,
+    pub max_duration_secs: u64,
+}
+
+/// Funding arguments grouped into one Soroban ABI value (#114).
+///
+/// This changes the function input shape but not the stored `Bounty` layout.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FundBountyParams {
+    pub maintainer: Address,
+    pub repo_id: u64,
+    pub issue: u64,
+    pub token: Address,
+    pub amount: i128,
+    pub deadline: u64,
+    pub relayer_allowed: bool,
 }
 
 #[contracttype]

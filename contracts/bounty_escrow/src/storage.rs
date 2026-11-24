@@ -1,4 +1,4 @@
-use soroban_sdk::{Address, Env, Vec};
+use soroban_sdk::{Address, Env, IntoVal, TryFromVal, Val, Vec};
 
 use crate::errors::Error;
 use crate::types::{
@@ -117,36 +117,44 @@ pub fn bump_persistent_max(env: &Env, key: &DataKey) {
         .extend_ttl(key, TTL_EXTEND_TO, TTL_EXTEND_TO);
 }
 
+/// Typed persistent lookup with optional TTL refresh. A missing key is never
+/// materialized; callers retain their existing default/error behavior.
+fn read_persistent<T: TryFromVal<Env, Val>>(
+    env: &Env,
+    key: &DataKey,
+    refresh_ttl: bool,
+) -> Option<T> {
+    let value = env.storage().persistent().get(key);
+    if refresh_ttl && value.is_some() {
+        bump_persistent(env, key);
+    }
+    value
+}
+
+/// Typed persistent write followed by the existing TTL policy.
+fn write_persistent<T: IntoVal<Env, Val>>(env: &Env, key: &DataKey, value: &T) {
+    env.storage().persistent().set(key, value);
+    bump_persistent(env, key);
+}
+
 pub fn get_bounty(env: &Env, id: u64) -> Result<Bounty, Error> {
     let key = DataKey::Bounty(id);
-    let b = env
-        .storage()
-        .persistent()
-        .get(&key)
-        .ok_or(Error::BountyNotFound)?;
-    bump_persistent(env, &key);
-    Ok(b)
+    read_persistent(env, &key, true).ok_or(Error::BountyNotFound)
 }
 
 pub fn set_bounty(env: &Env, b: &Bounty) {
     let key = DataKey::Bounty(b.id);
-    env.storage().persistent().set(&key, b);
-    bump_persistent(env, &key);
+    write_persistent(env, &key, b);
 }
 
 pub fn active_bounty(env: &Env, repo_id: u64, issue: u64) -> Option<u64> {
     let key = DataKey::ActiveByIssue(repo_id, issue);
-    let v: Option<u64> = env.storage().persistent().get(&key);
-    if v.is_some() {
-        bump_persistent(env, &key);
-    }
-    v
+    read_persistent(env, &key, true)
 }
 
 pub fn set_active(env: &Env, repo_id: u64, issue: u64, id: u64) {
     let key = DataKey::ActiveByIssue(repo_id, issue);
-    env.storage().persistent().set(&key, &id);
-    bump_persistent(env, &key);
+    write_persistent(env, &key, &id);
 }
 
 pub fn clear_active(env: &Env, repo_id: u64, issue: u64) {
@@ -157,13 +165,12 @@ pub fn clear_active(env: &Env, repo_id: u64, issue: u64) {
 
 pub fn get_totals(env: &Env, token: &Address) -> Totals {
     let key = DataKey::Totals(token.clone());
-    env.storage().persistent().get(&key).unwrap_or_default()
+    read_persistent(env, &key, false).unwrap_or_default()
 }
 
 pub fn set_totals(env: &Env, token: &Address, t: &Totals) {
     let key = DataKey::Totals(token.clone());
-    env.storage().persistent().set(&key, t);
-    bump_persistent(env, &key);
+    write_persistent(env, &key, t);
 }
 
 /// Used when no timeout has been set. 14 days: long enough for a maintainer to reach the arbiter, short enough
