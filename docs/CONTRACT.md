@@ -109,6 +109,27 @@ sequenceDiagram
 `release_split` follows the release flow but transfers one share to each of up to five winners in a single transaction, with all rounding dust assigned to the first winner (see "Fee math").
 
 ## Entry points
+
+### Signature authorisation
+
+Each signature covers the complete invocation: the entry point and every
+argument shown below. A signature cannot be reused to change the bounty id,
+recipient, token, amount, or administrative target.
+
+| Entry point | Required signer(s) | Arguments authorised |
+|---|---|---|
+| `fund_bounty` | maintainer | maintainer, repo id, issue, token, amount, deadline, relayer flag |
+| `release` / `release_split` | caller | caller, bounty id, winner or winner shares |
+| `refund`, `extend_deadline`, `top_up` | maintainer | maintainer, bounty id, and the requested refund, deadline, or amount change |
+| `open_dispute` | caller | caller and bounty id; caller must be the maintainer or arbiter |
+| `resolve` / `resolve_with_evidence` | arbiter | arbiter, bounty id, winner, split, and evidence hash where supplied |
+| `claim` | winner | winner and bounty id |
+| `set_admin` | current admin and incoming admin | both addresses; the incoming admin must explicitly accept the change |
+| all other `set_*`, pause, unpause, and upgrade calls | admin | admin plus the complete configuration or upgrade arguments |
+
+Read-only methods require no signature. `set_admin` is deliberately the only
+two-signer administrative call: both the current and incoming administrator
+must authorise the exact handoff.
 | Function | Auth | Notes / errors |
 |---|---|---|
 | `init(admin, relayer, arbiter, treasury, fee_bps, grace_secs, min_dur, max_dur)` | admin | once (`AlreadyInitialized`); `fee_bps <= 1000` (`InvalidFee`); `min <= max` (`InvalidDeadline`) |

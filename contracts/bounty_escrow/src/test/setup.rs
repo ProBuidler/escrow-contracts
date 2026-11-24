@@ -12,6 +12,38 @@ pub const GRACE: u64 = 3 * DAY;
 pub const FEE_BPS: u32 = 300;
 pub const REPO: u64 = 42;
 
+pub struct CtxBuilder {
+    fee_bps: u32,
+    min_amount: i128,
+    max_amount: i128,
+}
+
+impl CtxBuilder {
+    pub fn new() -> Self {
+        Self { fee_bps: FEE_BPS, min_amount: UNIT, max_amount: 500 * UNIT }
+    }
+
+    pub fn fee_bps(mut self, fee_bps: u32) -> Self {
+        self.fee_bps = fee_bps;
+        self
+    }
+
+    pub fn limits(mut self, min_amount: i128, max_amount: i128) -> Self {
+        self.min_amount = min_amount;
+        self.max_amount = max_amount;
+        self
+    }
+
+    pub fn build<'a>(self) -> Ctx<'a> {
+        let c = Ctx::new();
+        c.client.set_fee(&c.admin, &self.fee_bps);
+        for token in [&c.token, &c.token2] {
+            c.client.set_token(&c.admin, token, &self.min_amount, &self.max_amount, &None);
+        }
+        c
+    }
+}
+
 pub struct Ctx<'a> {
     pub env: Env,
     pub client: BountyEscrowClient<'a>,

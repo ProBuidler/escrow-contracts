@@ -153,6 +153,9 @@ Example: `FEE_BPS=500 GRACE_SECS=86400 ./scripts/deploy-testnet.sh`
 
 ### Administration
 
+For the signer and argument coverage of every state-changing call, see
+[the signature authorisation reference](docs/CONTRACT.md#signature-authorisation).
+
 `init` · `set_token` · `remove_token` · `set_fee` · `set_relayer` · `set_arbiter` · `set_treasury` ·
 `set_grace` · `set_durations` · `set_relayer_limit` · `set_admin` · `pause` · `unpause` ·
 `propose_upgrade` · `execute_upgrade` · `cancel_upgrade`
