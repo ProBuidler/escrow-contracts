@@ -319,3 +319,20 @@ fn remove_token_during_dispute_refund_path_returns_funds() {
     assert_eq!(c.contract_bal(&c.token), 0);
     c.assert_invariant(&c.token);
 }
+
+#[test]
+fn expire_dispute_before_timeout_and_reopen_rejected() {
+    let c = Ctx::new();
+    let id = disputed(&c);
+    let timeout = c.client.get_dispute_timeout();
+    c.set_time(c.now() + timeout - 1);
+    let r = c.client.try_expire_dispute(&c.maintainer, &id);
+    assert_eq!(r.unwrap_err().unwrap(), Error::DisputeNotExpired);
+
+    c.set_time(c.now() + 1);
+    c.client.expire_dispute(&c.maintainer, &id);
+    assert_eq!(c.client.get_bounty(&id).status, Status::Open);
+
+    let r2 = c.client.try_open_dispute(&c.maintainer, &id);
+    assert_eq!(r2.unwrap_err().unwrap(), Error::DisputeAlreadyUsed);
+}

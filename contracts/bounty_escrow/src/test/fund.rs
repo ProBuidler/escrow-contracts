@@ -253,6 +253,17 @@ fn totals_overflow_on_second_fund_moves_no_tokens() {
     c.assert_invariant(&c.token);
 }
 
+#[test]
+fn top_up_limit_reached_on_eleventh_top_up() {
+    let c = Ctx::new();
+    let id = c.fund(1);
+    for _ in 0..10 {
+        c.client.top_up(&c.maintainer, &id, &UNIT);
+    }
+    let r = c.client.try_top_up(&c.maintainer, &id, &UNIT);
+    assert_eq!(r.unwrap_err().unwrap(), Error::TopUpLimitReached);
+}
+
 // ── Deadline window property test (#106) ─────────────────────────────────────
 
 mod deadline_window {
