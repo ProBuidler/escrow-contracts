@@ -3,7 +3,7 @@ use soroban_sdk::{Address, Env, IntoVal, TryFromVal, Val, Vec};
 use crate::errors::Error;
 use crate::types::{
     Bounty, ClaimRecord, Config, DataKey, DisputeRecord, PendingUpgrade, RelayerLimit,
-    RelayerUsage, Status, TokenLimits, Totals,
+    RelayerUsage, TokenLimits, Totals,
 };
 
 // Ledgers close about every 5 s: 17_280 per day. Testnet max entry TTL is
@@ -30,7 +30,7 @@ pub fn get_bounties(env: &Env, start: u64, limit: u32) -> Vec<Bounty> {
     while id < max_id && list.len() < capped_limit {
         let key = DataKey::Bounty(id);
         if let Some(b) = env.storage().persistent().get::<DataKey, Bounty>(&key) {
-            if b.status == Status::Open || b.status == Status::Disputed {
+            if !b.status.is_terminal() {
                 bump_persistent(env, &key);
             }
             list.push_back(b);

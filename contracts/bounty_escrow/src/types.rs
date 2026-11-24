@@ -12,6 +12,16 @@ pub enum Status {
     Resolved,
 }
 
+impl Status {
+    /// Returns whether the bounty has reached a final lifecycle state.
+    pub const fn is_terminal(&self) -> bool {
+        match self {
+            Self::Released | Self::Refunded | Self::Resolved => true,
+            Self::Open | Self::Disputed => false,
+        }
+    }
+}
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Bounty {
